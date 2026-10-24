@@ -1,0 +1,13 @@
+<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Админ-панель MUSE Makeup Studio"><title>MUSE · Admin</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+<section class="login" id="login"><form id="loginForm"><div class="logo">MUSE<span>●</span></div><p>Панель управления</p><h1>Вход для мастера</h1><label>Ключ администратора<input id="key" type="password" autocomplete="current-password" required></label><button>Войти →</button><small>Для демо: <code>muse-demo</code></small><div class="error" id="loginError"></div></form></section>
+<div class="app hidden" id="app">
+  <aside><div class="logo">MUSE<span>●</span></div><p>Makeup Studio</p><nav><button class="active">▦ Обзор</button><button>◷ Календарь</button><button>♙ Клиенты</button><button>◇ Услуги</button></nav><button id="logout">Выйти</button></aside>
+  <main><header><div><p class="overline" id="today"></p><h1>Панель записей</h1></div><button class="primary" id="add">+ Новая запись</button></header>
+    <section class="metrics"><article><small>Новые заявки</small><b id="newCount">0</b></article><article><small>Все записи</small><b id="allCount">0</b></article><article><small>Плановая выручка</small><b id="revenue">£0</b></article><article><small>Telegram</small><b class="online">● Online</b></article></section>
+    <section class="panel"><div class="panel-head"><div><p class="overline">Общая база</p><h2>Записи клиентов</h2></div><select id="filter"><option value="all">Все статусы</option><option value="new">Новые</option><option value="confirmed">Подтверждённые</option><option value="cancelled">Отменённые</option></select></div><div class="table-wrap"><table><thead><tr><th>Дата</th><th>Клиент</th><th>Услуга</th><th>Стоимость</th><th>Статус</th><th></th></tr></thead><tbody id="rows"></tbody></table><div class="empty" id="empty">Записей пока нет. Создайте тестовую заявку или запустите Telegram-бота.</div></div></section>
+  </main>
+</div>
+<dialog id="bookingDialog"><form id="bookingForm"><button type="button" class="close">×</button><p class="overline">Новая запись</p><h2>Добавить клиента</h2><div class="grid"><label>Имя<input name="name" required></label><label>Телефон<input name="phone" required></label><label>Дата<input name="date" type="date" required></label><label>Время<select name="time"><option>10:00</option><option>12:30</option><option>15:00</option><option>17:30</option></select></label></div><label>Услуга<select name="serviceId" id="serviceSelect"></select></label><button class="primary">Создать запись →</button></form></dialog>
+<script src="app.js"></script></body></html>
+
