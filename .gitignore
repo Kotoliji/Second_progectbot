@@ -1,0 +1,5 @@
+.env
+data/bookings.json
+data/bookings.json.tmp
+npm-debug.log*
+
