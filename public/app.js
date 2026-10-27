@@ -55,7 +55,7 @@ function render() {
   $('#empty').style.display = visible.length ? 'none' : 'block';
   $('#rows').innerHTML = visible
     .slice()
-    .reverse()
+    .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))
     .map(
       (x) => `<tr>
         <td><b>${esc(x.date)}</b><br>${esc(x.time)}</td>
@@ -63,15 +63,23 @@ function render() {
         <td>${esc(x.serviceName)}</td>
         <td>£${esc(x.price)}</td>
         <td><span class="badge ${esc(x.status)}">${esc(statusLabels[x.status] || x.status)}</span></td>
-        <td class="actions">
-          ${x.status === 'new' ? `<button data-id="${esc(x.id)}" data-status="confirmed" title="Подтвердить">✓</button>` : ''}
-          ${x.status === 'confirmed' ? `<button data-id="${esc(x.id)}" data-status="completed" title="Завершить">★</button>` : ''}
-          ${['new', 'confirmed'].includes(x.status) ? `<button data-id="${esc(x.id)}" data-status="cancelled" title="Отменить">×</button>` : ''}
-        </td>
+        <td class="actions">${actions(x)}</td>
       </tr>`,
     )
     .join('');
   document.querySelectorAll('[data-status]').forEach((b) => (b.onclick = () => setStatus(b.dataset.id, b.dataset.status)));
+}
+
+function actions(x) {
+  const button = (status, title, icon) =>
+    `<button data-id="${esc(x.id)}" data-status="${status}" title="${title}">${icon}</button>`;
+  return [
+    x.status === 'new' && button('confirmed', 'Подтвердить', '✓'),
+    x.status === 'confirmed' && button('completed', 'Завершить', '★'),
+    ['new', 'confirmed'].includes(x.status) && button('cancelled', 'Отменить', '×'),
+  ]
+    .filter(Boolean)
+    .join('');
 }
 
 async function setStatus(id, status) {

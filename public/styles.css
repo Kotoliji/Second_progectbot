@@ -250,8 +250,10 @@ th {
   color: #955;
 }
 .actions {
-  display: flex;
-  gap: 6px;
+  white-space: nowrap;
+}
+.actions button + button {
+  margin-left: 6px;
 }
 .actions button {
   border: 1px solid var(--line);
