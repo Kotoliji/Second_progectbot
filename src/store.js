@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { availableTimes, services } from './config.js';
 
-const file = resolve('data/bookings.json');
+const file = resolve(process.env.DATA_FILE || 'data/bookings.json');
 let queue = Promise.resolve();
 
 async function read() {
