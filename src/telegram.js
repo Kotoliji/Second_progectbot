@@ -1,8 +1,14 @@
-import { availableTimes, config, isAdmin, services } from './config.js';
-import { store } from './store.js';
+import { config, isAdmin, localDate, services } from './config.js';
+import { freeTimes, SlotTakenError, store } from './store.js';
 
 const sessions = new Map();
 let offset = 0;
+let lastPollOk = 0;
+
+export const telegramOnline = () => Date.now() - lastPollOk < 60_000;
+
+// Messages use parse_mode HTML, so user-provided text must be escaped.
+const esc = value => String(value ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 
 const keyboard = rows => ({ inline_keyboard: rows });
 const serviceButtons = () => services.map(s => [{ text: `${s.name} · £${s.price}`, callback_data: `service:${s.id}` }]);
@@ -27,7 +33,7 @@ const edit = (chatId, messageId, text, reply_markup) => api('editMessageText', {
 function dates() {
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(Date.now() + (i + 1) * 86400000);
-    return { value: date.toISOString().slice(0, 10), label: date.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }) };
+    return { value: localDate(date), label: date.toLocaleDateString('ru-RU', { timeZone: config.timeZone, weekday: 'short', day: 'numeric', month: 'short' }) };
   });
 }
 
@@ -48,7 +54,7 @@ async function showAdminList(chatId, filter) {
   const items = (filter === 'new' ? all.filter(x => x.status === 'new') : all).slice(-8).reverse();
   if (!items.length) return send(chatId, 'Заявок пока нет.', keyboard([[{ text: '← Админка', callback_data: 'admin:home' }]]));
   for (const item of items) {
-    await send(chatId, `<b>${item.date} · ${item.time}</b>\n${item.name} · ${item.phone}\n${item.serviceName} · £${item.price}\nСтатус: <b>${item.status}</b>`, keyboard([
+    await send(chatId, `<b>${item.date} · ${item.time}</b>\n${esc(item.name)} · ${esc(item.phone)}\n${item.serviceName} · £${item.price}\nСтатус: <b>${item.status}</b>`, keyboard([
       [{ text: '✅ Подтвердить', callback_data: `status:${item.id}:confirmed` }, { text: '❌ Отменить', callback_data: `status:${item.id}:cancelled` }]
     ]));
   }
@@ -63,16 +69,24 @@ async function handleMessage(message) {
   if (message.text === '/start') return send(chatId, `<b>MUSE Makeup Studio</b>\n\nПомогу выбрать услугу и свободное время. Запись займёт меньше минуты.`, mainMenu);
   const session = sessions.get(chatId);
   if (session?.step === 'name') {
-    session.name = message.text?.trim(); session.step = 'phone';
+    if (!message.text?.trim()) return send(chatId, 'Напишите имя текстом.');
+    session.name = message.text.trim().slice(0, 100); session.step = 'phone';
     return send(chatId, 'Отправьте номер телефона сообщением, например <b>+44 7700 000000</b>.');
   }
   if (session?.step === 'phone') {
-    session.phone = message.contact?.phone_number || message.text?.trim();
+    session.phone = (message.contact?.phone_number || message.text?.trim() || '').slice(0, 30);
+    if (!session.phone) return send(chatId, 'Отправьте номер телефона текстом.');
     const service = services.find(s => s.id === session.serviceId);
-    const booking = await store.create({ telegramUserId: String(message.from.id), chatId, name: session.name, phone: session.phone, date: session.date, time: session.time, serviceId: service.id, serviceName: service.name, price: service.price });
     sessions.delete(chatId);
-    await send(chatId, `Готово, <b>${booking.name}</b>!\n\n${service.name}\n${booking.date} в ${booking.time}\nСтоимость: £${service.price}\n\nЗаявка отправлена мастеру. После подтверждения вы получите сообщение.`, mainMenu);
-    for (const adminId of config.adminIds) await send(adminId, `🆕 <b>Новая заявка</b>\n${booking.name} · ${booking.phone}\n${service.name}\n${booking.date} в ${booking.time}`, keyboard([[{ text: '✅ Подтвердить', callback_data: `status:${booking.id}:confirmed` }]]));
+    let booking;
+    try {
+      booking = await store.create({ telegramUserId: String(message.from.id), chatId, name: session.name, phone: session.phone, date: session.date, time: session.time, serviceId: service.id, serviceName: service.name, price: service.price });
+    } catch (error) {
+      if (error instanceof SlotTakenError) return send(chatId, 'Это время только что заняли. Выберите другое: /start');
+      throw error;
+    }
+    await send(chatId, `Готово, <b>${esc(booking.name)}</b>!\n\n${service.name}\n${booking.date} в ${booking.time}\nСтоимость: £${service.price}\n\nЗаявка отправлена мастеру. После подтверждения вы получите сообщение.`, mainMenu);
+    for (const adminId of config.adminIds) await send(adminId, `🆕 <b>Новая заявка</b>\n${esc(booking.name)} · ${esc(booking.phone)}\n${service.name}\n${booking.date} в ${booking.time}`, keyboard([[{ text: '✅ Подтвердить', callback_data: `status:${booking.id}:confirmed` }]]));
   }
 }
 
@@ -89,14 +103,16 @@ async function handleCallback(query) {
     return edit(chatId, messageId, `<b>Мои записи</b>\n\n${text}`, keyboard([[{ text: '← Меню', callback_data: 'home' }]]));
   }
   if (data.startsWith('service:')) {
-    sessions.set(chatId, { serviceId: data.split(':')[1], step: 'date' });
+    const serviceId = data.split(':')[1];
+    if (!services.some(s => s.id === serviceId)) return send(chatId, 'Начните запись заново: /start');
+    sessions.set(chatId, { serviceId, step: 'date' });
     return edit(chatId, messageId, '<b>Выберите дату</b>', keyboard(dates().map(d => [{ text: d.label, callback_data: `date:${d.value}` }])));
   }
   if (data.startsWith('date:')) {
     const session = sessions.get(chatId); if (!session) return send(chatId, 'Начните запись заново: /start');
     session.date = data.slice(5); session.step = 'time';
-    const busy = (await store.list()).filter(x => x.date === session.date && !['cancelled'].includes(x.status)).map(x => x.time);
-    const free = availableTimes.filter(t => !busy.includes(t));
+    const free = freeTimes(await store.list(), session.date, session.serviceId);
+    if (!free.length) return edit(chatId, messageId, 'На эту дату всё занято, выберите другую.', keyboard(dates().map(d => [{ text: d.label, callback_data: `date:${d.value}` }])));
     return edit(chatId, messageId, '<b>Выберите свободное время</b>', keyboard(free.map(t => [{ text: t, callback_data: `time:${t}` }])));
   }
   if (data.startsWith('time:')) {
@@ -112,7 +128,7 @@ async function handleCallback(query) {
     const [, id, status] = data.split(':');
     const booking = await store.updateStatus(id, status);
     if (!booking) return send(chatId, 'Запись не найдена.');
-    await edit(chatId, messageId, `${status === 'confirmed' ? '✅' : '❌'} <b>${booking.name}</b>\n${booking.date} в ${booking.time}\nСтатус: <b>${status}</b>`);
+    await edit(chatId, messageId, `${status === 'confirmed' ? '✅' : '❌'} <b>${esc(booking.name)}</b>\n${booking.date} в ${booking.time}\nСтатус: <b>${status}</b>`);
     if (booking.chatId) await send(booking.chatId, status === 'confirmed' ? `✅ Запись на ${booking.date} в ${booking.time} подтверждена.` : `Запись на ${booking.date} в ${booking.time} отменена. Свяжитесь с мастером, если нужно подобрать другое время.`, mainMenu);
   }
 }
@@ -124,6 +140,7 @@ export async function startTelegram() {
   while (true) {
     try {
       const updates = await api('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'callback_query'] });
+      lastPollOk = Date.now();
       for (const update of updates) {
         offset = update.update_id + 1;
         if (update.message) await handleMessage(update.message);

@@ -170,10 +170,13 @@ header h1 {
   font-size: 30px;
   margin-top: 15px;
 }
-.metrics .online {
+.metrics .bot-status {
   font-size: 16px;
   color: #54845a;
   margin-top: 23px;
+}
+.metrics .bot-status.offline {
+  color: var(--muted);
 }
 .panel {
   background: white;
@@ -237,6 +240,10 @@ th {
 .badge.confirmed {
   background: #e9f4eb;
   color: #47724d;
+}
+.badge.completed {
+  background: #eceaf6;
+  color: #5b5590;
 }
 .badge.cancelled {
   background: #f5e8e8;
