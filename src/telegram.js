@@ -58,9 +58,6 @@ async function handleMessage(message) {
   const chatId = message.chat.id;
   if (message.text === '/admin') {
     if (!isAdmin(message.from)) return send(chatId, 'У вас нет доступа к админке.');
-    // Remember the immutable numeric ID for notifications during this process.
-    // Copy it to ADMIN_IDS later so access survives a restart.
-    config.adminIds.add(String(message.from.id));
     return showAdmin(chatId);
   }
   if (message.text === '/start') return send(chatId, `<b>MUSE Makeup Studio</b>\n\nПомогу выбрать услугу и свободное время. Запись займёт меньше минуты.`, mainMenu);
@@ -107,10 +104,11 @@ async function handleCallback(query) {
     session.time = data.slice(5); session.step = 'name';
     return edit(chatId, messageId, '<b>Как вас зовут?</b>\n\nНапишите имя одним сообщением.');
   }
+  // callback_data is client-controlled, so every admin action checks the sender.
+  if ((data.startsWith('admin:') || data.startsWith('status:')) && !isAdmin(query.from)) return;
   if (data === 'admin:home') return showAdmin(chatId);
   if (data.startsWith('admin:list:')) return showAdminList(chatId, data.split(':')[2]);
   if (data.startsWith('status:')) {
-    if (!isAdmin(query.from)) return;
     const [, id, status] = data.split(':');
     const booking = await store.updateStatus(id, status);
     if (!booking) return send(chatId, 'Запись не найдена.');

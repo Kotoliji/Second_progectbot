@@ -1,16 +1,14 @@
 export const config = {
   token: process.env.BOT_TOKEN || '',
   adminIds: new Set((process.env.ADMIN_IDS || '').split(',').map(x => x.trim()).filter(Boolean)),
-  adminUsernames: new Set((process.env.ADMIN_USERNAMES || '').split(',').map(x => x.trim().replace(/^@/, '').toLowerCase()).filter(Boolean)),
-  adminKey: process.env.ADMIN_KEY || 'muse-demo',
+  // No default: without ADMIN_KEY the web API stays locked.
+  adminKey: process.env.ADMIN_KEY || '',
   port: Number(process.env.PORT || 3000),
   publicUrl: process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`
 };
 
 export function isAdmin(user) {
-  const idMatch = config.adminIds.has(String(user?.id || ''));
-  const usernameMatch = user?.username && config.adminUsernames.has(user.username.toLowerCase());
-  return Boolean(idMatch || usernameMatch);
+  return config.adminIds.has(String(user?.id || ''));
 }
 
 export const services = [
@@ -21,4 +19,3 @@ export const services = [
 ];
 
 export const availableTimes = ['10:00', '12:30', '15:00', '17:30'];
-

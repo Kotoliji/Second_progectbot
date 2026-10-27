@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -8,10 +9,21 @@ import { startTelegram } from './telegram.js';
 const publicDir = join(process.cwd(), 'public');
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 const json = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(body)); };
-const authorized = req => req.headers['x-admin-key'] === config.adminKey;
+const digest = value => createHash('sha256').update(String(value)).digest();
+const authorized = req => Boolean(config.adminKey) && timingSafeEqual(digest(req.headers['x-admin-key'] || ''), digest(config.adminKey));
+
+// Only these fields come from the client; price and service name are taken from the catalogue.
+function bookingInput(raw) {
+  const service = services.find(s => s.id === raw.serviceId);
+  const text = value => String(value ?? '').trim().slice(0, 100);
+  const input = { name: text(raw.name), phone: text(raw.phone), date: text(raw.date), time: text(raw.time) };
+  if (!service || !input.name || !input.phone || !/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.time)) return null;
+  return { ...input, serviceId: service.id, serviceName: service.name, price: service.price, source: 'web-admin' };
+}
 
 async function body(req) {
-  const chunks = []; for await (const chunk of req) chunks.push(chunk);
+  const chunks = []; let size = 0;
+  for await (const chunk of req) { size += chunk.length; if (size > 10_000) throw new SyntaxError('Body too large'); chunks.push(chunk); }
   return JSON.parse(Buffer.concat(chunks).toString() || '{}');
 }
 
@@ -24,7 +36,10 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/api/bookings') {
       if (!authorized(req)) return json(res, 401, { error: 'unauthorized' });
       if (req.method === 'GET') return json(res, 200, await store.list());
-      if (req.method === 'POST') return json(res, 201, await store.create(await body(req)));
+      if (req.method === 'POST') {
+        const input = bookingInput(await body(req));
+        return input ? json(res, 201, await store.create(input)) : json(res, 400, { error: 'bad_request' });
+      }
     }
     if (url.pathname.startsWith('/api/bookings/') && req.method === 'PATCH') {
       if (!authorized(req)) return json(res, 401, { error: 'unauthorized' });
@@ -44,5 +59,6 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(config.port, () => console.log(`Веб-панель: http://localhost:${config.port}`));
+if (!config.adminKey) console.warn('ADMIN_KEY не задан — API веб-панели закрыт.');
 startTelegram().catch(error => { console.error(error); process.exitCode = 1; });
 

@@ -12,7 +12,7 @@
 ## Запуск веб-панели в демо-режиме
 
 ```powershell
-$env:ADMIN_KEY="muse-demo"
+$env:ADMIN_KEY="придумайте-ключ"
 npm start
 ```
 
@@ -27,13 +27,12 @@ npm start
 ```powershell
 $env:BOT_TOKEN="токен BotFather"
 $env:ADMIN_IDS="ваш Telegram ID"
-$env:ADMIN_USERNAMES="mariyka_soul,Papuk_Kyrylo"
 $env:ADMIN_KEY="надёжный пароль веб-панели"
 $env:PUBLIC_URL="https://адрес-панели.example"
 npm start
 ```
 
-Не добавляйте настоящий токен в Git и не записывайте его в `.env.example`. `ADMIN_USERNAMES` поддерживается для первого запуска, но постоянный доступ безопаснее выдавать через неизменяемые числовые `ADMIN_IDS`.
+Не добавляйте настоящий токен в Git и не записывайте его в `.env.example`.
 
 ## Сценарии
 

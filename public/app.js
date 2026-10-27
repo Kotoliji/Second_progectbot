@@ -1,4 +1,8 @@
 const $ = (s) => document.querySelector(s);
+// Booking fields come from Telegram users, so everything is escaped before it reaches innerHTML.
+const esc = (value) =>
+  String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const statusLabels = { new: 'Новая', confirmed: 'Подтверждена', cancelled: 'Отменена' };
 let key = sessionStorage.getItem('muse-key') || '',
   bookings = [],
   services = [];
@@ -38,7 +42,7 @@ $('#today').textContent = new Date().toLocaleDateString('ru-RU', {
 async function load() {
   [bookings, services] = await Promise.all([api('/api/bookings'), api('/api/services')]);
   $('#serviceSelect').innerHTML = services
-    .map((s) => `<option value="${s.id}">${s.name} · £${s.price}</option>`)
+    .map((s) => `<option value="${esc(s.id)}">${esc(s.name)} · £${esc(s.price)}</option>`)
     .join('');
   render();
 }
@@ -54,8 +58,17 @@ function render() {
     .slice()
     .reverse()
     .map(
-      (x) =>
-        `<tr><td><b>${x.date}</b><br>${x.time}</td><td class="client"><b>${x.name}</b><small>${x.phone}</small></td><td>${x.serviceName}</td><td>£${x.price}</td><td><span class="badge ${x.status}">${{ new: 'Новая', confirmed: 'Подтверждена', cancelled: 'Отменена' }[x.status] || x.status}</span></td><td class="actions">${x.status === 'new' ? `<button data-id="${x.id}" data-status="confirmed" title="Подтвердить">✓</button>` : ''}${x.status !== 'cancelled' ? `<button data-id="${x.id}" data-status="cancelled" title="Отменить">×</button>` : ''}</td></tr>`,
+      (x) => `<tr>
+        <td><b>${esc(x.date)}</b><br>${esc(x.time)}</td>
+        <td class="client"><b>${esc(x.name)}</b><small>${esc(x.phone)}</small></td>
+        <td>${esc(x.serviceName)}</td>
+        <td>£${esc(x.price)}</td>
+        <td><span class="badge ${esc(x.status)}">${esc(statusLabels[x.status] || x.status)}</span></td>
+        <td class="actions">
+          ${x.status === 'new' ? `<button data-id="${esc(x.id)}" data-status="confirmed" title="Подтвердить">✓</button>` : ''}
+          ${x.status !== 'cancelled' ? `<button data-id="${esc(x.id)}" data-status="cancelled" title="Отменить">×</button>` : ''}
+        </td>
+      </tr>`,
     )
     .join('');
   document

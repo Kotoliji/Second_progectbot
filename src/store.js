@@ -35,7 +35,7 @@ export const store = {
   list: read,
   create(input) {
     return mutate(items => {
-      const booking = { id: randomUUID(), status: 'new', createdAt: new Date().toISOString(), ...input };
+      const booking = { ...input, id: randomUUID(), status: 'new', createdAt: new Date().toISOString() };
       items.push(booking);
       return booking;
     });
